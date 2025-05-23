@@ -138,7 +138,8 @@ function touchStarted(e) {
  * Each user gets their own ball and trail, updated based on their device orientation.
  */
 
-// Store ball state for each user: position and trail
+
+// Store ball state for each user: position
 const userBalls = new Map();
 
 function updateUserBall(user) {
@@ -146,9 +147,8 @@ function updateUserBall(user) {
   if (!userBalls.has(user.id)) {
     // Start ball in the center of the user's window
     userBalls.set(user.id, {
-      cx: user.windowWidth / 2 || width / 2,
-      cy: user.windowHeight / 2 || height / 2,
-      trail: []
+      cx: width / 2,
+      cy: height / 2
     });
   }
   const ball = userBalls.get(user.id);
@@ -158,20 +158,15 @@ function updateUserBall(user) {
   const dy = constrain(user.rotationX || 0, -3, 3);
   ball.cx += dx * 2;
   ball.cy += dy * 2;
-
-  // Constrain to user's window size
-  ball.cx = constrain(ball.cx, 0, user.windowWidth * 0.25 || width * 0.25);
-  ball.cy = constrain(ball.cy, 0, user.windowHeight * 0.25 || height * 0.25);
-
-  // Add to trail
-  ball.trail.push({ x: ball.cx, y: ball.cy });
-  if (ball.trail.length > 100) ball.trail.shift();
+  // No constraints! Ball can go anywhere.
 }
 
-// Patch draw() to add the ball and trail for each user
+// Patch draw() to add the ball for each user, with never-ending trail
+let lastDrawn = new Map(); // Store last position for each user
+
 const originalDraw = draw;
 draw = function() {
-  background(51);
+  // No background clearing for never-ending trail
 
   const radius = min(width/2, height/2) * .8;
   let i = 0;
@@ -212,18 +207,19 @@ draw = function() {
       }
       point(user.mouseX * sca, user.mouseY * sca);
 
-      // --- Balancing Ball with Trail ---
+      // --- Balancing Ball with Never-Ending Trail ---
       updateUserBall({ ...user, id });
       const ball = userBalls.get(id);
 
-      // Draw trail
-      noFill();
-      stroke(255, 200, 0, 120);
-      beginShape();
-      for (const p of ball.trail) {
-        vertex(p.x * sca, p.y * sca, 1);
+      // Draw line from last position to current for trail effect
+      if (!lastDrawn.has(id)) {
+        lastDrawn.set(id, {x: ball.cx, y: ball.cy});
       }
-      endShape();
+      const last = lastDrawn.get(id);
+      stroke(255, 200, 0, 120);
+      strokeWeight(4);
+      line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
+      lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 
       // Draw ball
       noStroke();
