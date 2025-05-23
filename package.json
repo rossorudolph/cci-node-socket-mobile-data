@@ -10,9 +10,6 @@
     "express",
     "beginner-friendly"
   ],
-  "engines": {
-    "node": "22.x"
-  },
   "author": "kate hollenbach",
   "license": "MIT",
   "dependencies": {
