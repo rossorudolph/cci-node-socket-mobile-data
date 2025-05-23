@@ -143,9 +143,7 @@ function touchStarted(e) {
 const userBalls = new Map();
 
 function updateUserBall(user) {
-  // Initialize ball state if not present
   if (!userBalls.has(user.id)) {
-    // Start ball in the center of the user's window
     userBalls.set(user.id, {
       cx: width / 2,
       cy: height / 2
@@ -153,16 +151,79 @@ function updateUserBall(user) {
   }
   const ball = userBalls.get(user.id);
 
-  // Use device orientation to move the ball
-  const dx = constrain(user.rotationY || 0, -3, 3);
-  const dy = constrain(user.rotationX || 0, -3, 3);
-  ball.cx += dx * 2;
-  ball.cy += dy * 2;
-  // No constraints! Ball can go anywhere.
+  // Try swapping and inverting axes for more natural movement in WEBGL
+  // You may need to experiment with these!
+  const dx = constrain(-(user.rotationX || 0), -3, 3); // invert X
+  const dy = constrain(user.rotationY || 0, -3, 3);    // normal Y
+
+  ball.cx += dx * 0.8;
+  ball.cy += dy * 0.8;
 }
 
 // Patch draw() to add the ball for each user, with never-ending trail
 let lastDrawn = new Map(); // Store last position for each user
+
+const originalDraw = draw;
+draw = function() {
+  // No background clearing for never-ending trail
+
+  const radius = min(width/2, height/2) * .8;
+  let i = 0;
+
+  for(const [id, user] of users.entries()) {
+    const angle = map(i, 0, users.size, 0, 360);
+    i++;
+    const x = radius * cos(angle);
+    const y = radius * sin(angle);
+
+    push();
+    translate(x, y);
+
+    if (user.name != undefined) {
+      fill(255);
+      text(user.name, 0, 20);
+
+      push();
+      noStroke();
+      rotateZ(user.rotationZ);
+      rotateX(user.rotationX);
+      rotateY(user.rotationY);
+
+      // x, y, z axes
+      push(); fill(255, 0, 0); translate(50, 0, 0); box(100, 5, 5); pop();
+      push(); fill(0, 255, 0); translate(0, 50, 0); box(5, 100, 5); pop();
+      push(); fill(0, 0, 255); translate(0, 0, 50); box(5, 5, 100); pop();
+
+      pop();
+
+      strokeWeight(5);
+      stroke(255);
+
+      const sca = .25;
+      translate(-user.windowWidth/2 * sca, -user.windowHeight/2 * sca);
+      for (const touch of user.touches) {
+        point(touch.x * sca, touch.y * sca, 0);
+      }
+      point(user.mouseX * sca, user.mouseY * sca);
+
+      // --- Balancing Ball with Never-Ending Trail ---
+      function updateUserBall(user) {
+  // Initialize ball state if not present
+  if (!userBalls.has(user.id)) {
+    userBalls.set(user.id, {
+      cx: width / 2,
+      cy: height / 2
+    });
+  }
+  const ball = userBalls.get(user.id);
+
+  // Make movement less sensitive
+  const dx = constrain(user.rotationY || 0, -3, 3);
+  const dy = constrain(user.rotationX || 0, -3, 3);
+  ball.cx += dx * 0.8; // less sensitive
+  ball.cy += dy * 0.8;
+  // No constraints! Ball can go anywhere.
+}
 
 const originalDraw = draw;
 draw = function() {
@@ -221,14 +282,17 @@ draw = function() {
       line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
       lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 
-      // Draw ball
-      noStroke();
-      fill(255, 200, 0);
+      // Draw ball with outline (like original sketch)
+      stroke(255, 180, 0, 220);
+      strokeWeight(6);
+      fill(255, 220, 50, 180);
       push();
       translate(ball.cx * sca, ball.cy * sca, 2);
-      sphere(30 * sca, 24, 16);
+      // Use ellipse for a flat look, or sphere for 3D
+      ellipse(0, 0, 120 * sca, 120 * sca); // larger, outlined ball
       pop();
     }
     pop();
   }
 };
+}
