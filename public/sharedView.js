@@ -229,3 +229,8 @@ translate(ball.cx * sca, ball.cy * sca, 2);
 // Use ellipse for a flat look, or sphere for 3D
 ellipse(0, 0, 120 * sca, 120 * sca); // larger, outlined ball
 pop();
+    }
+    pop();
+  }
+}
+  
