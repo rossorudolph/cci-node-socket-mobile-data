@@ -60,33 +60,30 @@ function draw() {
       text(user.name, 0, 20);
       
       push();
-      
-      noStroke();
-      
+      noFill();
+      strokeWeight(1); // very thin axis lines
+      stroke(255);
       // Z-X-Y order matters!! orient the axis like our phone.
       rotateZ(user.rotationZ);
       rotateX(user.rotationX);
       rotateY(user.rotationY);
-      
+
       // x-axis (red)
       push();
-      fill(255, 0, 0);
-      translate(50, 0, 0);
-      box(100, 5, 5);
+      stroke(255, 0, 0);
+      line(0, 0, 0, 50, 0, 0);
       pop();
-      
+
       // y-axis (green)
       push();
-      fill(0, 255, 0);
-      translate(0, 50, 0);
-      box(5, 100, 5);
+      stroke(0, 255, 0);
+      line(0, 0, 0, 0, 50, 0);
       pop();
-      
-      //z-axis (blue)
+
+      // z-axis (blue)
       push();
-      fill(0, 0, 255);
-      translate(0, 0, 50);
-      box(5, 5, 100);
+      stroke(0, 0, 255);
+      line(0, 0, 0, 0, 0, 50);
       pop();
 
       pop();
@@ -217,13 +214,13 @@ if (!lastDrawn.has(id)) {
 const last = lastDrawn.get(id);
 // Trail stroke: gray
 stroke(180, 180, 180, 120);
-strokeWeight(4);
+strokeWeight(2); // thinner trail
 line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
 lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 
 // Draw ball with white fill and gray outline
 stroke(180, 180, 180, 220); // gray outline
-strokeWeight(6);
+strokeWeight(1); // much thinner outline
 fill(255, 255, 255, 220);   // white fill
 push();
 translate(ball.cx * sca, ball.cy * sca, 2);
