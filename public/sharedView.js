@@ -206,93 +206,26 @@ draw = function() {
       }
       point(user.mouseX * sca, user.mouseY * sca);
 
-      // --- Balancing Ball with Never-Ending Trail ---
-      function updateUserBall(user) {
-  // Initialize ball state if not present
-  if (!userBalls.has(user.id)) {
-    userBalls.set(user.id, {
-      cx: width / 2,
-      cy: height / 2
-    });
-  }
-  const ball = userBalls.get(user.id);
+// --- Balancing Ball with Never-Ending Trail ---
+updateUserBall({ ...user, id });
+const ball = userBalls.get(id);
 
-  // Make movement less sensitive
-  const dx = constrain(user.rotationY || 0, -3, 3);
-  const dy = constrain(user.rotationX || 0, -3, 3);
-  ball.cx += dx * 0.8; // less sensitive
-  ball.cy += dy * 0.8;
-  // No constraints! Ball can go anywhere.
+// Draw line from last position to current for trail effect
+if (!lastDrawn.has(id)) {
+  lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 }
+const last = lastDrawn.get(id);
+stroke(255, 200, 0, 120);
+strokeWeight(4);
+line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
+lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 
-const originalDraw = draw;
-draw = function() {
-  // No background clearing for never-ending trail
-
-  const radius = min(width/2, height/2) * .8;
-  let i = 0;
-
-  for(const [id, user] of users.entries()) {
-    const angle = map(i, 0, users.size, 0, 360);
-    i++;
-    const x = radius * cos(angle);
-    const y = radius * sin(angle);
-
-    push();
-    translate(x, y);
-
-    if (user.name != undefined) {
-      fill(255);
-      text(user.name, 0, 20);
-
-      push();
-      noStroke();
-      rotateZ(user.rotationZ);
-      rotateX(user.rotationX);
-      rotateY(user.rotationY);
-
-      // x, y, z axes
-      push(); fill(255, 0, 0); translate(50, 0, 0); box(100, 5, 5); pop();
-      push(); fill(0, 255, 0); translate(0, 50, 0); box(5, 100, 5); pop();
-      push(); fill(0, 0, 255); translate(0, 0, 50); box(5, 5, 100); pop();
-
-      pop();
-
-      strokeWeight(5);
-      stroke(255);
-
-      const sca = .25;
-      translate(-user.windowWidth/2 * sca, -user.windowHeight/2 * sca);
-      for (const touch of user.touches) {
-        point(touch.x * sca, touch.y * sca, 0);
-      }
-      point(user.mouseX * sca, user.mouseY * sca);
-
-      // --- Balancing Ball with Never-Ending Trail ---
-      updateUserBall({ ...user, id });
-      const ball = userBalls.get(id);
-
-      // Draw line from last position to current for trail effect
-      if (!lastDrawn.has(id)) {
-        lastDrawn.set(id, {x: ball.cx, y: ball.cy});
-      }
-      const last = lastDrawn.get(id);
-      stroke(255, 200, 0, 120);
-      strokeWeight(4);
-      line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
-      lastDrawn.set(id, {x: ball.cx, y: ball.cy});
-
-      // Draw ball with outline (like original sketch)
-      stroke(255, 180, 0, 220);
-      strokeWeight(6);
-      fill(255, 220, 50, 180);
-      push();
-      translate(ball.cx * sca, ball.cy * sca, 2);
-      // Use ellipse for a flat look, or sphere for 3D
-      ellipse(0, 0, 120 * sca, 120 * sca); // larger, outlined ball
-      pop();
-    }
-    pop();
-  }
-};
-}
+// Draw ball with outline (like original sketch)
+stroke(255, 180, 0, 220);
+strokeWeight(6);
+fill(255, 220, 50, 180);
+push();
+translate(ball.cx * sca, ball.cy * sca, 2);
+// Use ellipse for a flat look, or sphere for 3D
+ellipse(0, 0, 120 * sca, 120 * sca); // larger, outlined ball
+pop();
