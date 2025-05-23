@@ -91,7 +91,7 @@ function draw() {
 
       pop();
       
-      strokeWeight(5);
+      strokeWeight(1);
       stroke(255);
       
       // also show touches on the screen, scaled down
@@ -215,19 +215,19 @@ if (!lastDrawn.has(id)) {
   lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 }
 const last = lastDrawn.get(id);
-stroke(255, 200, 0, 120);
+// Trail stroke: gray
+stroke(180, 180, 180, 120);
 strokeWeight(4);
 line(last.x * sca, last.y * sca, ball.cx * sca, ball.cy * sca);
 lastDrawn.set(id, {x: ball.cx, y: ball.cy});
 
-// Draw ball with outline (like original sketch)
-stroke(255, 180, 0, 220);
+// Draw ball with white fill and gray outline
+stroke(180, 180, 180, 220); // gray outline
 strokeWeight(6);
-fill(255, 220, 50, 180);
+fill(255, 255, 255, 220);   // white fill
 push();
 translate(ball.cx * sca, ball.cy * sca, 2);
-// Use ellipse for a flat look, or sphere for 3D
-ellipse(0, 0, 120 * sca, 120 * sca); // larger, outlined ball
+ellipse(0, 0, 120 * sca, 120 * sca);
 pop();
     }
     pop();
