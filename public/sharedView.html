@@ -94,7 +94,7 @@
 
         function draw() {
           // Subtle fade for traces - very slight background overlay
-          fill(0, 0, 0, 8); // Very transparent black for slow fade
+          fill(0, 0, 0, 6); // Slightly more transparent for blur effect
           noStroke();
           rect(0, 0, width, height);
           
@@ -107,7 +107,10 @@
             }
           }
           
-          // UI overlay
+          // Apply subtle blur effect for dreamy trails
+          filter(BLUR, 0.3);
+          
+          // UI overlay - drawn AFTER blur so it stays crisp
           drawUI();
         }
 
@@ -278,6 +281,10 @@
         }
 
         function drawUI() {
+          // Clear any lingering fill/stroke settings
+          noFill();
+          noStroke();
+          
           // Minimal title - Ikeda style
           fill(255);
           textAlign(LEFT);
@@ -308,6 +315,10 @@
             textSize(12);
             text("//waiting", width/2, height/2);
           }
+          
+          // Clear fill/stroke after UI
+          noFill();
+          noStroke();
         }
 
         function onUserJoined(data) {
