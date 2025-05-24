@@ -53,7 +53,7 @@
     <!-- Your shared view code -->
     <script>
         // Set the URL for mobile connection
-        document.getElementById('url').textContent = window.location.host + '/client.html';
+        document.getElementById('url').textContent = window.location.origin + '/mobile';
 
         /* Oscilloscope Creatures - Shared View Display
          *
@@ -61,8 +61,8 @@
          * oscilloscope creatures controlled by mobile devices
          */
 
-        const SOCKET_URL = window.location.host;
-        const socket = io.connect(SOCKET_URL + "/sharedView");
+        const SOCKET_URL = window.location.origin;
+        const socket = io(SOCKET_URL + "/sharedView");
 
         const users = new Map();
         const creatures = new Map();
@@ -89,12 +89,12 @@
           background(0);
           
           console.log("Oscilloscope Creatures - Shared View Ready");
+          console.log("Mobile players should visit:", window.location.origin + '/mobile');
         }
 
         function draw() {
-          // Dark space background with subtle grid
-          background(5);
-          drawGrid();
+          // Pure black background - Ikeda style
+          background(0);
           
           // Update and draw all creatures
           for(const [id, user] of users.entries()) {
@@ -109,21 +109,6 @@
           drawUI();
         }
 
-        function drawGrid() {
-          stroke(20);
-          strokeWeight(1);
-          
-          // Vertical lines
-          for (let x = 0; x < width; x += 50) {
-            line(x, 0, x, height);
-          }
-          
-          // Horizontal lines  
-          for (let y = 0; y < height; y += 50) {
-            line(0, y, width, y);
-          }
-        }
-
         function updateCreature(creature, user) {
           // Update position based on joystick
           if (user.joystickActive) {
@@ -132,24 +117,26 @@
           }
           
           // Boundary constraints
-          creature.targetX = constrain(creature.targetX, CREATURE_SIZE, width - CREATURE_SIZE);
-          creature.targetY = constrain(creature.targetY, CREATURE_SIZE, height - CREATURE_SIZE);
+          creature.targetX = constrain(creature.targetX, 50, width - 50);
+          creature.targetY = constrain(creature.targetY, 50, height - 50);
           
           // Smooth movement
           creature.x += (creature.targetX - creature.x) * 0.1;
           creature.y += (creature.targetY - creature.y) * 0.1;
           
-          // Update shake effect
+          // Update shake effect - 5 second duration
           if (user.shakeDetected && millis() - creature.lastShake > 1000) {
-            creature.shakeTime = 2000; // 2 second shake effect
+            creature.shakeTime = 5000; // 5 second shake effect
             creature.lastShake = millis();
           }
           
           if (creature.shakeTime > 0) {
             creature.shakeTime -= 16; // ~60fps
-            creature.targetSize = 1.5 + sin(millis() * 0.01) * 0.3;
+            // Dramatic size increase when shaking
+            creature.targetSize = 0.8 + sin(millis() * 0.01) * 0.3;
           } else {
-            creature.targetSize = 1.0;
+            // Very small when not shaking - barely visible
+            creature.targetSize = 0.08;
           }
           
           // Smooth size changes
@@ -166,11 +153,11 @@
           const arms = creature.arms;
           const segments = creature.segments;
           
-          // Use device rotation for influence
+          // Use device rotation for subtle influence
           const rotInfluence = {
-            x: (user.rotationX || 0) * 0.01,
-            y: (user.rotationY || 0) * 0.01,
-            z: (user.rotationZ || 0) * 0.01
+            x: (user.rotationX || 0) * 0.005, // More subtle
+            y: (user.rotationY || 0) * 0.005,
+            z: (user.rotationZ || 0) * 0.005
           };
           
           for (let arm = 0; arm < arms; arm++) {
@@ -180,33 +167,37 @@
             for (let i = 0; i < segments; i++) {
               const t = i / (segments - 1);
               
-              // Base radius with oscilloscope modulation
-              let r = creature.radius * t;
+              // Create flowing, organic shapes rather than structured arms
+              let r = creature.radius * (0.1 + t * 0.9); // Start from center, flow outward
               
-              // Multiple frequency components for complex shape
-              const wave1 = sin(creature.time + armAngle + t * creature.personality.freq1 * 10 + rotInfluence.x * 100) * 0.5;
-              const wave2 = sin(creature.time * 1.3 + armAngle * 2 + t * creature.personality.freq2 * 15 + rotInfluence.y * 100) * 0.3;
-              const wave3 = sin(creature.time * 0.7 + armAngle * 3 + t * 8 + rotInfluence.z * 100) * 0.2;
+              // Multiple wave layers for complex organic movement
+              const wave1 = sin(creature.time * 0.8 + armAngle * 0.1 + t * creature.personality.freq1 * 8 + rotInfluence.x * 50) * 0.4;
+              const wave2 = cos(creature.time * 1.2 + armAngle * 0.3 + t * creature.personality.freq2 * 12 + rotInfluence.y * 50) * 0.3;
+              const wave3 = sin(creature.time * 0.5 + armAngle * 0.7 + t * 6 + rotInfluence.z * 50) * 0.2;
               
-              // Add chaos influenced by accelerometer
-              const accelInfluence = sqrt((user.accelerationX || 0)**2 + (user.accelerationY || 0)**2) * 0.1;
-              const chaos = sin(creature.time * 2 + armAngle * 4 + t * 20) * creature.personality.chaos * (0.1 + accelInfluence);
+              // Subtle chaos for organic feel
+              const accelInfluence = sqrt((user.accelerationX || 0)**2 + (user.accelerationY || 0)**2) * 0.05;
+              const chaos = sin(creature.time * 1.5 + armAngle * 2 + t * 15) * creature.personality.chaos * (0.05 + accelInfluence);
               
-              r += (wave1 + wave2 + wave3 + chaos) * creature.radius * 0.4;
-              r = max(0.1, r);
+              // More flowing, less spiky
+              r += (wave1 + wave2 + wave3 + chaos) * creature.radius * 0.3;
+              r = max(10, r); // Minimum radius to prevent collapse
               
-              // Calculate position
-              const x = cos(armAngle) * r;
-              const y = sin(armAngle) * r;
+              // Create flowing curves by offsetting the angle
+              const angleOffset = (wave1 + wave2) * 30; // Degrees of curve
+              const finalAngle = armAngle + angleOffset;
               
-              // Color intensity based on wave amplitude
-              const intensity = abs(wave1 + wave2) + 0.3;
+              const x = cos(finalAngle) * r;
+              const y = sin(finalAngle) * r;
+              
+              // Intensity for opacity variation
+              const intensity = abs(wave1 + wave2) + 0.2;
               
               creature.armData[arm][i] = {
                 x: x,
                 y: y,
                 intensity: intensity,
-                armAngle: armAngle
+                armAngle: finalAngle
               };
             }
           }
@@ -217,99 +208,83 @@
           translate(creature.x, creature.y);
           scale(creature.size);
           
-          // Draw creature name
-          fill(255);
-          textSize(16 / creature.size);
-          text(user.name.toUpperCase(), 0, -creature.radius - 30);
+          // No name - minimal Ikeda style
           
-          // Shake indicator
-          if (creature.shakeTime > 0) {
-            fill(255, 100, 100, 150);
-            textSize(12 / creature.size);
-            text("GROWING!", 0, -creature.radius - 50);
-          }
+          // No shake indicator text - let the visual growth speak for itself
           
-          // Draw oscilloscope arms
+          // Draw minimal oscilloscope lines - very fine
           for (let arm = 0; arm < creature.arms; arm++) {
             if (!creature.armData[arm]) continue;
             
-            stroke(creature.color.r, creature.color.g, creature.color.b, 200);
-            strokeWeight(2);
+            // Very subtle base opacity when small
+            let baseAlpha = creature.size > 0.2 ? 180 : 40;
+            
+            stroke(creature.color.r, creature.color.g, creature.color.b, baseAlpha);
+            strokeWeight(0.5); // Very fine lines
             noFill();
             
+            // Draw as smooth curves instead of connected vertices
             beginShape();
+            noFill();
             for (let i = 0; i < creature.segments; i++) {
               const point = creature.armData[arm][i];
               if (point) {
-                // Color based on intensity
+                // Intensity affects opacity, not color
                 const intensity = point.intensity;
-                const alpha = map(intensity, 0, 1, 100, 255);
+                const alpha = map(intensity, 0, 1, baseAlpha * 0.3, baseAlpha);
                 
-                stroke(
-                  creature.color.r + intensity * 50,
-                  creature.color.g + intensity * 50, 
-                  creature.color.b + intensity * 50,
-                  alpha
-                );
+                stroke(creature.color.r, creature.color.g, creature.color.b, alpha);
                 
-                vertex(point.x, point.y);
-              }
-            }
-            endShape();
-            
-            // Draw connecting lines between arms for web effect
-            if (arm % 2 === 0 && creature.armData[arm + 1]) {
-              stroke(creature.color.r, creature.color.g, creature.color.b, 100);
-              strokeWeight(1);
-              
-              for (let i = 0; i < creature.segments; i += 3) {
-                const point1 = creature.armData[arm][i];
-                const point2 = creature.armData[arm + 1] ? creature.armData[arm + 1][i] : null;
-                
-                if (point1 && point2) {
-                  line(point1.x, point1.y, point2.x, point2.y);
+                if (i === 0) {
+                  curveVertex(point.x, point.y);
+                }
+                curveVertex(point.x, point.y);
+                if (i === creature.segments - 1) {
+                  curveVertex(point.x, point.y);
                 }
               }
             }
+            endShape();
           }
           
-          // Center core
-          fill(creature.color.r, creature.color.g, creature.color.b, 180);
-          stroke(255, 150);
-          strokeWeight(1);
-          ellipse(0, 0, 20, 20);
-          
-          // Activity indicators
-          if (user.joystickActive) {
-            fill(0, 255, 0, 100);
-            ellipse(0, 0, 30, 30);
-          }
+          // No center circle - pure minimal lines only
+          // No web connections - each line stands alone
+          // No activity indicators - let the form speak for itself
           
           pop();
         }
 
         function drawUI() {
-          // Title
+          // Minimal title - Ikeda style
           fill(255);
           textAlign(LEFT);
-          textSize(24);
-          text("OSCILLOSCOPE CREATURES", 30, 40);
-          
-          // Player count
           textSize(16);
-          text(`Active Creatures: ${users.size}`, 30, 70);
+          text("oscilloscope_creatures", 20, 30);
           
-          // Instructions
+          // Player count - very subtle
           textSize(12);
           fill(150);
-          text("Players use mobile devices to control their creatures", 30, height - 60);
-          text("Joystick to move • Shake phone to grow bigger • Tilt for effects", 30, height - 40);
-          text("Join at: " + window.location.host + "/client.html", 30, height - 20);
+          text(`${users.size}`, 20, 50);
           
-          // Connection status
+          // Minimal instructions
+          textSize(10);
+          fill(100);
+          text("mobile: shake to reveal", 20, height - 40);
+          text(window.location.origin + "/mobile", 20, height - 25);
+          
+          // Connection status - minimal
           textAlign(RIGHT);
-          fill(socket.connected ? color(0, 255, 0) : color(255, 0, 0));
-          text(socket.connected ? "CONNECTED" : "DISCONNECTED", width - 30, 40);
+          textSize(10);
+          fill(socket.connected ? color(100, 255, 100) : color(255, 100, 100));
+          text(socket.connected ? "●" : "○", width - 20, 30);
+          
+          // Minimal waiting message if no players
+          if (users.size === 0) {
+            textAlign(CENTER);
+            fill(80);
+            textSize(12);
+            text("//waiting", width/2, height/2);
+          }
         }
 
         function onUserJoined(data) {
@@ -343,29 +318,29 @@
           
           const creature = {
             id: id,
-            x: random(CREATURE_SIZE, width - CREATURE_SIZE),
-            y: random(CREATURE_SIZE, height - CREATURE_SIZE),
+            x: random(100, width - 100),
+            y: random(100, height - 100),
             targetX: 0,
             targetY: 0,
-            size: 1,
-            targetSize: 1,
+            size: 0.08, // Start very small
+            targetSize: 0.08,
             time: random(0, TWO_PI),
             shakeTime: 0,
             lastShake: 0,
             
-            // Oscilloscope properties
-            arms: 8,
-            segments: 30,
-            radius: CREATURE_SIZE * 0.6,
+            // Minimal oscilloscope properties
+            arms: 6, // Fewer arms for cleaner look
+            segments: 40, // More segments for smoother curves
+            radius: 100, // Larger radius but scaled down by size
             color: creatureColor,
             armData: [],
             
-            // Personality
+            // More organic personality for flowing lines
             personality: {
-              freq1: 0.5 + random(2),
-              freq2: 0.3 + random(1.5),
-              chaos: 0.2 + random(0.5),
-              speed: 0.8 + random(0.4)
+              freq1: 0.3 + random(1.5), // Lower frequencies for smoother curves
+              freq2: 0.2 + random(1.0),
+              chaos: 0.1 + random(0.3), // Less chaos for cleaner lines
+              speed: 0.5 + random(0.3)  // Slower, more meditative movement
             }
           };
           
@@ -373,7 +348,7 @@
           creature.targetY = creature.y;
           
           creatures.set(id, creature);
-          console.log("Created creature:", colorName, "for user:", id);
+          console.log("Created minimal creature:", colorName, "for user:", id);
         }
 
         function getColorFromName(colorName) {
