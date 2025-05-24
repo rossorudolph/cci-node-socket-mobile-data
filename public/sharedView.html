@@ -93,8 +93,10 @@
         }
 
         function draw() {
-          // Pure black background - Ikeda style
-          background(0);
+          // Subtle fade for traces - very slight background overlay
+          fill(0, 0, 0, 8); // Very transparent black for slow fade
+          noStroke();
+          rect(0, 0, width, height);
           
           // Update and draw all creatures
           for(const [id, user] of users.entries()) {
@@ -124,26 +126,39 @@
           creature.x += (creature.targetX - creature.x) * 0.1;
           creature.y += (creature.targetY - creature.y) * 0.1;
           
-          // Update shake effect - 5 second duration
+          // Update shake effect - 10 second duration
           if (user.shakeDetected && millis() - creature.lastShake > 1000) {
-            creature.shakeTime = 5000; // 5 second shake effect
+            creature.shakeTime = 10000; // 10 second shake effect
             creature.lastShake = millis();
           }
           
           if (creature.shakeTime > 0) {
             creature.shakeTime -= 16; // ~60fps
             // Dramatic size increase when shaking
-            creature.targetSize = 0.8 + sin(millis() * 0.01) * 0.3;
+            creature.targetSize = 0.6 + sin(millis() * 0.008) * 0.2;
           } else {
-            // Very small when not shaking - barely visible
-            creature.targetSize = 0.08;
+            // More visible when not shaking - but still subtle
+            creature.targetSize = 0.15 + sin(millis() * 0.002) * 0.02; // Gentle breathing
           }
           
-          // Smooth size changes
-          creature.size += (creature.targetSize - creature.size) * 0.1;
+          // Organic jittering - random multipliers that change slowly
+          if (frameCount % 60 === 0) { // Update every second
+            creature.jitter = {
+              size: 0.95 + random(0.1), // Size variation
+              rotation: random(-5, 5), // Slight rotation
+              speed: 0.9 + random(0.2), // Speed variation
+              chaos: 0.8 + random(0.4) // Pattern variation
+            };
+          }
           
-          // Animation time
-          creature.time += 0.02 * creature.personality.speed;
+          // Apply jitter to target size
+          creature.targetSize *= creature.jitter.size;
+          
+          // Smooth size changes
+          creature.size += (creature.targetSize - creature.size) * 0.08;
+          
+          // Animation time with jittered speed
+          creature.time += 0.02 * creature.personality.speed * creature.jitter.speed;
           
           // Update oscilloscope arms
           updateOscilloscopeArms(creature, user);
@@ -160,6 +175,9 @@
             z: (user.rotationZ || 0) * 0.005
           };
           
+          // Apply jitter to chaos for organic feel
+          const jitteredChaos = creature.personality.chaos * (creature.jitter ? creature.jitter.chaos : 1.0);
+          
           for (let arm = 0; arm < arms; arm++) {
             const armAngle = (arm / arms) * 360;
             creature.armData[arm] = creature.armData[arm] || [];
@@ -175,28 +193,30 @@
               const wave2 = cos(creature.time * 1.2 + armAngle * 0.3 + t * creature.personality.freq2 * 12 + rotInfluence.y * 50) * 0.3;
               const wave3 = sin(creature.time * 0.5 + armAngle * 0.7 + t * 6 + rotInfluence.z * 50) * 0.2;
               
-              // Subtle chaos for organic feel
+              // Jittered chaos for organic feel
               const accelInfluence = sqrt((user.accelerationX || 0)**2 + (user.accelerationY || 0)**2) * 0.05;
-              const chaos = sin(creature.time * 1.5 + armAngle * 2 + t * 15) * creature.personality.chaos * (0.05 + accelInfluence);
+              const chaos = sin(creature.time * 1.5 + armAngle * 2 + t * 15) * jitteredChaos * (0.05 + accelInfluence);
               
               // More flowing, less spiky
               r += (wave1 + wave2 + wave3 + chaos) * creature.radius * 0.3;
               r = max(10, r); // Minimum radius to prevent collapse
               
-              // Create flowing curves by offsetting the angle
-              const angleOffset = (wave1 + wave2) * 30; // Degrees of curve
+              // Create flowing curves by offsetting the angle with jitter
+              const jitterOffset = creature.jitter ? creature.jitter.rotation * 0.5 : 0;
+              const angleOffset = (wave1 + wave2) * 30 + jitterOffset; // Degrees of curve
               const finalAngle = armAngle + angleOffset;
               
               const x = cos(finalAngle) * r;
               const y = sin(finalAngle) * r;
               
-              // Intensity for opacity variation
-              const intensity = abs(wave1 + wave2) + 0.2;
+              // Intensity for opacity variation with subtle jitter
+              const baseIntensity = abs(wave1 + wave2) + 0.2;
+              const jitteredIntensity = creature.jitter ? baseIntensity * creature.jitter.size : baseIntensity;
               
               creature.armData[arm][i] = {
                 x: x,
                 y: y,
-                intensity: intensity,
+                intensity: jitteredIntensity,
                 armAngle: finalAngle
               };
             }
@@ -206,21 +226,25 @@
         function drawCreature(creature, user) {
           push();
           translate(creature.x, creature.y);
+          
+          // Apply organic rotation jitter
+          if (creature.jitter) {
+            rotate(creature.jitter.rotation);
+          }
+          
           scale(creature.size);
           
           // No name - minimal Ikeda style
           
-          // No shake indicator text - let the visual growth speak for itself
-          
-          // Draw minimal oscilloscope lines - very fine
+          // Draw minimal oscilloscope lines - slightly more visible
           for (let arm = 0; arm < creature.arms; arm++) {
             if (!creature.armData[arm]) continue;
             
-            // Very subtle base opacity when small
-            let baseAlpha = creature.size > 0.2 ? 180 : 40;
+            // More visible base opacity
+            let baseAlpha = creature.size > 0.3 ? 200 : 80; // Increased from 40
             
             stroke(creature.color.r, creature.color.g, creature.color.b, baseAlpha);
-            strokeWeight(0.5); // Very fine lines
+            strokeWeight(0.8); // Slightly thicker for visibility
             noFill();
             
             // Draw as smooth curves instead of connected vertices
@@ -231,7 +255,7 @@
               if (point) {
                 // Intensity affects opacity, not color
                 const intensity = point.intensity;
-                const alpha = map(intensity, 0, 1, baseAlpha * 0.3, baseAlpha);
+                const alpha = map(intensity, 0, 1, baseAlpha * 0.4, baseAlpha);
                 
                 stroke(creature.color.r, creature.color.g, creature.color.b, alpha);
                 
@@ -246,10 +270,6 @@
             }
             endShape();
           }
-          
-          // No center circle - pure minimal lines only
-          // No web connections - each line stands alone
-          // No activity indicators - let the form speak for itself
           
           pop();
         }
@@ -322,11 +342,19 @@
             y: random(100, height - 100),
             targetX: 0,
             targetY: 0,
-            size: 0.08, // Start very small
-            targetSize: 0.08,
+            size: 0.15, // Start slightly more visible
+            targetSize: 0.15,
             time: random(0, TWO_PI),
             shakeTime: 0,
             lastShake: 0,
+            
+            // Organic jitter properties
+            jitter: {
+              size: 1.0,
+              rotation: 0,
+              speed: 1.0,
+              chaos: 1.0
+            },
             
             // Minimal oscilloscope properties
             arms: 6, // Fewer arms for cleaner look

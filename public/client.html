@@ -13,6 +13,10 @@
             font-family: 'Courier New', monospace;
             overflow: hidden;
             touch-action: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
         
         .loading {
@@ -35,6 +39,11 @@
             font-size: 16px;
             margin-bottom: 10px;
         }
+        
+        /* Prevent zoom on double tap */
+        * {
+            touch-action: manipulation;
+        }
     </style>
 </head>
 <body>
@@ -52,16 +61,11 @@
     
     <!-- Your client controller code -->
     <script>
-        /* Oscilloscope Creatures - Mobile Controller
-         *
-         * JavaScript code for mobile devices that sends accelerometer 
-         * and touch data to control oscilloscope creatures
-         */
+        /* Oscilloscope Creatures - Mobile Controller */
 
-        const SOCKET_URL = window.location.host + "/client";
-        const socket = io.connect(SOCKET_URL);
-
-        const updateRate = 15; // frames (faster updates for game)
+        const SOCKET_URL = window.location.origin;
+        const socket = io(SOCKET_URL + "/client");
+        const updateRate = 15;
 
         // Creature personality colors
         const creatureColors = [
@@ -69,19 +73,22 @@
           "purple", "pink", "teal", "coral", "violet", "turquoise",
           "salmon", "chartreuse", "hotpink", "dodgerblue", "orchid", "springgreen"
         ];
+        
         let nickname;
         let playerColor;
+        let gameSetup = false;
 
         // Game state
         let joystickData = { x: 0, y: 0, active: false };
         let shakeDetected = false;
         let lastShakeTime = 0;
         let shakeThreshold = 20;
+        let miniCreatureTime = 0;
 
         // UI elements
         let connectButton;
         let shakeIndicator;
-        let joystickBase, joystickStick;
+        let statusDiv;
 
         function setup() {
           createCanvas(windowWidth, windowHeight);
@@ -141,6 +148,9 @@
         }
 
         function setupGame() {
+          if (gameSetup) return;
+          gameSetup = true;
+          
           // Pick random creature identity
           nickname = random(creatureColors);
           playerColor = nickname;
@@ -156,7 +166,7 @@
 
         function createUI() {
           // Connection status
-          connectButton = createButton("JOIN GAME");
+          connectButton = createButton("CONNECTED");
           connectButton.position(20, 20);
           connectButton.style("font-size", "16px");
           connectButton.style("padding", "10px 20px");
@@ -164,11 +174,17 @@
           connectButton.style("color", "white");
           connectButton.style("border", "none");
           connectButton.style("border-radius", "5px");
-          connectButton.mousePressed(joinGame);
+          connectButton.style("pointer-events", "none");
+          
+          // Status indicator
+          statusDiv = createDiv("Connecting...");
+          statusDiv.position(20, 70);
+          statusDiv.style("color", "white");
+          statusDiv.style("font-size", "14px");
           
           // Shake indicator
           shakeIndicator = createDiv("SHAKE TO GROW!");
-          shakeIndicator.position(width/2 - 100, 80);
+          shakeIndicator.position(width/2 - 100, 120);
           shakeIndicator.style("width", "200px");
           shakeIndicator.style("text-align", "center");
           shakeIndicator.style("background", "rgba(255,100,100,0.8)");
@@ -179,101 +195,111 @@
           shakeIndicator.style("font-weight", "bold");
           shakeIndicator.style("opacity", "0");
           shakeIndicator.style("transition", "opacity 0.3s");
-          
-          // Create virtual joystick
-          createJoystick();
-        }
-
-        function createJoystick() {
-          // Joystick container
-          let joystickContainer = createDiv("");
-          joystickContainer.position(width - 140, height - 140);
-          joystickContainer.style("width", "120px");
-          joystickContainer.style("height", "120px");
-          joystickContainer.style("position", "fixed");
-          
-          // Joystick base
-          joystickBase = createDiv("");
-          joystickBase.parent(joystickContainer);
-          joystickBase.style("width", "120px");
-          joystickBase.style("height", "120px");
-          joystickBase.style("border-radius", "50%");
-          joystickBase.style("background", "rgba(255,255,255,0.1)");
-          joystickBase.style("border", "2px solid rgba(255,255,255,0.3)");
-          joystickBase.style("position", "relative");
-          joystickBase.style("touch-action", "none");
-          
-          // Joystick stick
-          joystickStick = createDiv("");
-          joystickStick.parent(joystickBase);
-          joystickStick.style("width", "40px");
-          joystickStick.style("height", "40px");
-          joystickStick.style("border-radius", "50%");
-          joystickStick.style("background", "rgba(255,255,255,0.8)");
-          joystickStick.style("position", "absolute");
-          joystickStick.style("top", "50%");
-          joystickStick.style("left", "50%");
-          joystickStick.style("transform", "translate(-50%, -50%)");
-          joystickStick.style("transition", "all 0.1s ease");
-          joystickStick.style("pointer-events", "none");
-          
-          // Add touch events
-          let isDragging = false;
-          
-          joystickBase.touchStarted((e) => {
-            isDragging = true;
-            joystickData.active = true;
-            return false;
-          });
-          
-          joystickBase.mousePressed((e) => {
-            isDragging = true;
-            joystickData.active = true;
-            return false;
-          });
         }
 
         function setupSocketEvents() {
           socket.on('connect', () => {
             console.log('Connected to server:', socket.id);
+            connectButton.style("background", "#4CAF50");
+            connectButton.html("CONNECTED");
+            statusDiv.html("Ready to play!");
           });
           
           socket.on('disconnect', () => {
             console.log('Disconnected from server');
-            connectButton.html("RECONNECT");
+            connectButton.style("background", "#f44336");
+            connectButton.html("DISCONNECTED");
+            statusDiv.html("Connection lost...");
+          });
+          
+          socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            statusDiv.html("Connection error");
           });
         }
 
-        function joinGame() {
-          console.log("Attempting to join game as creature:", nickname);
-          connectButton.html("CONNECTED");
-          connectButton.style("background", "#2196F3");
+        function drawMiniCreature() {
+          // Mini creature preview in top right
+          push();
+          translate(width - 60, 80);
+          
+          // Calculate current size based on shake timing
+          let currentSize = 1;
+          if (millis() - lastShakeTime < 10000) { // 10 second shake effect
+            currentSize = 3 + sin(millis() * 0.008) * 0.5;
+          } else {
+            currentSize = 0.8 + sin(millis() * 0.002) * 0.1;
+          }
+          
+          scale(currentSize * 0.3); // Small preview size
+          
+          // Animate the mini creature
+          miniCreatureTime += 0.03;
+          
+          // Simple oscilloscope pattern
+          stroke(nickname);
+          strokeWeight(0.8);
+          noFill();
+          
+          // Draw 4 simple arms
+          for (let arm = 0; arm < 4; arm++) {
+            let armAngle = (arm / 4) * 360 + miniCreatureTime * 10;
+            
+            beginShape();
+            for (let i = 0; i < 20; i++) {
+              let t = i / 19;
+              let r = 15 * t;
+              
+              // Simple wave pattern
+              let wave = sin(miniCreatureTime + armAngle * 0.1 + t * 8) * 0.3;
+              r += wave * 8;
+              
+              let x = cos(armAngle + wave * 20) * r;
+              let y = sin(armAngle + wave * 20) * r;
+              
+              if (i === 0) curveVertex(x, y);
+              curveVertex(x, y);
+              if (i === 19) curveVertex(x, y);
+            }
+            endShape();
+          }
+          
+          pop();
         }
 
         function draw() {
-          background(20);
-          fill(255);
+          background(10); // Very dark, almost black
           
-          // Game title
-          textSize(32);
-          text("OSCILLOSCOPE", width/2, 50);
-          text("CREATURES", width/2, 90);
-          
-          // Your creature info
-          textSize(20);
-          fill(nickname);
-          text(`You are: ${nickname.toUpperCase()}`, width/2, height/2 - 100);
-          
-          fill(255);
-          textSize(16);
-          text("Use joystick to move", width/2, height/2 - 60);
-          text("Shake phone to grow bigger!", width/2, height/2 - 40);
-          text("Watch the shared screen", width/2, height/2 - 20);
-          
-          // Instructions
+          // Minimal title
+          fill(150);
           textSize(14);
-          text("Tilt and move your phone", width/2, height/2 + 40);
-          text("Your creature responds to movement", width/2, height/2 + 60);
+          textAlign(LEFT);
+          text("osc_creatures", 20, 30);
+          
+          if (gameSetup && nickname) {
+            // Your creature preview - small version in top right
+            drawMiniCreature();
+            
+            // Minimal creature info
+            fill(100);
+            textSize(12);
+            textAlign(RIGHT);
+            text(nickname, width - 20, 50);
+            
+            // Current size indicator
+            const sizePercent = Math.floor((millis() - lastShakeTime < 10000) ? 100 : 15);
+            fill((millis() - lastShakeTime < 10000) ? 150 : 80);
+            text(sizePercent + "%", width - 20, 65);
+            
+            // Minimal instructions
+            fill(60);
+            textSize(10);
+            textAlign(CENTER);
+            text("move | shake", width/2, height - 120);
+          }
+          
+          // Draw virtual joystick
+          drawJoystick();
           
           // Handle joystick input
           handleJoystickInput();
@@ -282,30 +308,80 @@
           detectShake();
           
           // Send data to server
-          if (frameCount % updateRate === 0 && window.permissionGranted) {
+          if (frameCount % updateRate === 0 && window.permissionGranted && gameSetup) {
             sendGameData();
           }
           
-          // Show connection status
-          textSize(12);
-          fill(socket.connected ? color(0, 255, 0) : color(255, 0, 0));
-          text(socket.connected ? "CONNECTED" : "DISCONNECTED", width - 60, 30);
+          // Minimal connection status
+          fill(socket.connected ? color(100, 150, 100) : color(150, 100, 100));
+          textSize(8);
+          textAlign(RIGHT);
+          text(socket.connected ? "●" : "○", width - 10, 20);
+        }
+
+        function drawJoystick() {
+          // Joystick base
+          const baseX = width - 80;
+          const baseY = height - 80;
+          const baseRadius = 50;
+          
+          fill(255, 255, 255, 30);
+          stroke(255, 255, 255, 100);
+          strokeWeight(2);
+          ellipse(baseX, baseY, baseRadius * 2);
+          
+          // Joystick stick
+          const stickX = baseX + joystickData.x * 30;
+          const stickY = baseY + joystickData.y * 30;
+          
+          fill(255, 255, 255, 200);
+          stroke(255);
+          strokeWeight(1);
+          ellipse(stickX, stickY, 30);
+          
+          // Active indicator
+          if (joystickData.active) {
+            fill(0, 255, 0, 100);
+            ellipse(baseX, baseY, baseRadius * 2.2);
+          }
         }
 
         function handleJoystickInput() {
-          // Handle touch/mouse input for joystick
-          if (touches.length > 0 || mouseIsPressed) {
-            let touch = touches.length > 0 ? touches[0] : {x: mouseX, y: mouseY};
+          const baseX = width - 80;
+          const baseY = height - 80;
+          const maxDistance = 30;
+          
+          // Handle touch input
+          if (touches.length > 0) {
+            for (let touch of touches) {
+              let distance = dist(touch.x, touch.y, baseX, baseY);
+              
+              if (distance < 50) {
+                joystickData.active = true;
+                
+                let deltaX = touch.x - baseX;
+                let deltaY = touch.y - baseY;
+                
+                if (distance <= maxDistance) {
+                  joystickData.x = deltaX / maxDistance;
+                  joystickData.y = deltaY / maxDistance;
+                } else {
+                  let angle = atan2(deltaY, deltaX);
+                  joystickData.x = cos(angle);
+                  joystickData.y = sin(angle);
+                }
+                break;
+              }
+            }
+          } else if (mouseIsPressed) {
+            // Handle mouse input for testing
+            let distance = dist(mouseX, mouseY, baseX, baseY);
             
-            // Check if touch is on joystick area
-            let joystickX = width - 80;  // center of joystick
-            let joystickY = height - 80;
-            let distance = dist(touch.x, touch.y, joystickX, joystickY);
-            
-            if (distance < 60 && joystickData.active) {
-              let deltaX = touch.x - joystickX;
-              let deltaY = touch.y - joystickY;
-              let maxDistance = 40;
+            if (distance < 50) {
+              joystickData.active = true;
+              
+              let deltaX = mouseX - baseX;
+              let deltaY = mouseY - baseY;
               
               if (distance <= maxDistance) {
                 joystickData.x = deltaX / maxDistance;
@@ -315,20 +391,12 @@
                 joystickData.x = cos(angle);
                 joystickData.y = sin(angle);
               }
-              
-              // Update visual position
-              let stickX = 50 + joystickData.x * 40;
-              let stickY = 50 + joystickData.y * 40;
-              joystickStick.style("left", stickX + "px");
-              joystickStick.style("top", stickY + "px");
             }
           } else {
-            // Reset joystick
+            // Reset joystick when not touching
             joystickData.active = false;
             joystickData.x = 0;
             joystickData.y = 0;
-            joystickStick.style("left", "50%");
-            joystickStick.style("top", "50%");
           }
         }
 
@@ -344,11 +412,11 @@
               shakeDetected = true;
               lastShakeTime = millis();
               
-              // Show shake indicator
+              // Show shake indicator briefly
               shakeIndicator.style("opacity", "1");
               setTimeout(() => {
                 shakeIndicator.style("opacity", "0");
-              }, 1500);
+              }, 800);
               
               console.log("Shake detected! Total acceleration:", totalAcceleration);
             } else {
@@ -358,6 +426,8 @@
         }
 
         function sendGameData() {
+          if (!socket.connected) return;
+          
           const data = {
             // Device sensor data
             accelerationX: accelerationX || 0,
@@ -394,7 +464,7 @@
           socket.emit("update", JSON.stringify(data));
         }
 
-        // Prevent scrolling on mobile
+        // Prevent scrolling and zooming on mobile
         function touchStarted() {
           return false;
         }
@@ -402,6 +472,13 @@
         function touchMoved() {
           return false;
         }
+
+        function touchEnded() {
+          return false;
+        }
+
+        // Prevent context menu
+        document.addEventListener('contextmenu', e => e.preventDefault());
 
         // Debug info
         function keyPressed() {
@@ -411,6 +488,7 @@
             console.log("Rotation:", rotationX, rotationY, rotationZ);
             console.log("Joystick:", joystickData);
             console.log("Socket connected:", socket.connected);
+            console.log("Game setup:", gameSetup);
           }
         }
     </script>
