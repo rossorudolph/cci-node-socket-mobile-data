@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Oscilloscope Creatures - Mobile Controller</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .loading h1 {
+            color: #00ff00;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .loading p {
+            color: #ccc;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <h1>OSCILLOSCOPE CREATURES</h1>
+        <p>Loading mobile controller...</p>
+        <p>Make sure to allow sensor access!</p>
+    </div>
+
+    <!-- p5.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    
+    <!-- Socket.IO client -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Your client controller code -->
+    <script>
+        /* Oscilloscope Creatures - Mobile Controller
+         *
+         * JavaScript code for mobile devices that sends accelerometer 
+         * and touch data to control oscilloscope creatures
+         */
+
+        const SOCKET_URL = window.location.host + "/client";
+        const socket = io.connect(SOCKET_URL);
+
+        const updateRate = 15; // frames (faster updates for game)
+
+        // Creature personality colors
+        const creatureColors = [
+          "crimson", "gold", "lime", "cyan", "magenta", "orange", 
+          "purple", "pink", "teal", "coral", "violet", "turquoise",
+          "salmon", "chartreuse", "hotpink", "dodgerblue", "orchid", "springgreen"
+        ];
+        let nickname;
+        let playerColor;
+
+        // Game state
+        let joystickData = { x: 0, y: 0, active: false };
+        let shakeDetected = false;
+        let lastShakeTime = 0;
+        let shakeThreshold = 20;
+
+        // UI elements
+        let connectButton;
+        let shakeIndicator;
+        let joystickBase, joystickStick;
+
+        function setup() {
+          createCanvas(windowWidth, windowHeight);
+          angleMode(DEGREES);
+          textAlign(CENTER, CENTER);
+
+          // Hide loading screen
+          document.getElementById('loading').style.display = 'none';
+
+          // Permission handling for device sensors
+          window.permissionGranted = false;
+
+          if (
+            typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function"
+          ) {
+            // iOS 13+ device
+            DeviceOrientationEvent.requestPermission()
+              .catch(() => {
+                let button = createButton("TAP TO ALLOW SENSORS");
+                button.style("font-size", "24px");
+                button.style("padding", "20px");
+                button.style("background", "#4CAF50");
+                button.style("color", "white");
+                button.style("border", "none");
+                button.style("border-radius", "10px");
+                button.center();
+                button.mousePressed(requestAccess);
+                throw null;
+              })
+              .then((response) => {
+                if (response === "granted") {
+                  window.permissionGranted = true;
+                  setupGame();
+                }
+              });
+          } else {
+            // non iOS 13+ device
+            window.permissionGranted = true;
+            setupGame();
+          }
+
+          function requestAccess() {
+            DeviceOrientationEvent.requestPermission()
+              .then((response) => {
+                if (response === "granted") {
+                  window.permissionGranted = true;
+                  setupGame();
+                } else {
+                  window.permissionGranted = false;
+                }
+              })
+              .catch(console.error);
+
+            this.remove();
+          }
+        }
+
+        function setupGame() {
+          // Pick random creature identity
+          nickname = random(creatureColors);
+          playerColor = nickname;
+          
+          // Setup UI
+          createUI();
+          
+          // Setup socket events
+          setupSocketEvents();
+          
+          console.log("Game setup complete. Your creature color:", nickname);
+        }
+
+        function createUI() {
+          // Connection status
+          connectButton = createButton("JOIN GAME");
+          connectButton.position(20, 20);
+          connectButton.style("font-size", "16px");
+          connectButton.style("padding", "10px 20px");
+          connectButton.style("background", "#4CAF50");
+          connectButton.style("color", "white");
+          connectButton.style("border", "none");
+          connectButton.style("border-radius", "5px");
+          connectButton.mousePressed(joinGame);
+          
+          // Shake indicator
+          shakeIndicator = createDiv("SHAKE TO GROW!");
+          shakeIndicator.position(width/2 - 100, 80);
+          shakeIndicator.style("width", "200px");
+          shakeIndicator.style("text-align", "center");
+          shakeIndicator.style("background", "rgba(255,100,100,0.8)");
+          shakeIndicator.style("color", "white");
+          shakeIndicator.style("padding", "15px");
+          shakeIndicator.style("border-radius", "10px");
+          shakeIndicator.style("font-size", "14px");
+          shakeIndicator.style("font-weight", "bold");
+          shakeIndicator.style("opacity", "0");
+          shakeIndicator.style("transition", "opacity 0.3s");
+          
+          // Create virtual joystick
+          createJoystick();
+        }
+
+        function createJoystick() {
+          // Joystick container
+          let joystickContainer = createDiv("");
+          joystickContainer.position(width - 140, height - 140);
+          joystickContainer.style("width", "120px");
+          joystickContainer.style("height", "120px");
+          joystickContainer.style("position", "fixed");
+          
+          // Joystick base
+          joystickBase = createDiv("");
+          joystickBase.parent(joystickContainer);
+          joystickBase.style("width", "120px");
+          joystickBase.style("height", "120px");
+          joystickBase.style("border-radius", "50%");
+          joystickBase.style("background", "rgba(255,255,255,0.1)");
+          joystickBase.style("border", "2px solid rgba(255,255,255,0.3)");
+          joystickBase.style("position", "relative");
+          joystickBase.style("touch-action", "none");
+          
+          // Joystick stick
+          joystickStick = createDiv("");
+          joystickStick.parent(joystickBase);
+          joystickStick.style("width", "40px");
+          joystickStick.style("height", "40px");
+          joystickStick.style("border-radius", "50%");
+          joystickStick.style("background", "rgba(255,255,255,0.8)");
+          joystickStick.style("position", "absolute");
+          joystickStick.style("top", "50%");
+          joystickStick.style("left", "50%");
+          joystickStick.style("transform", "translate(-50%, -50%)");
+          joystickStick.style("transition", "all 0.1s ease");
+          joystickStick.style("pointer-events", "none");
+          
+          // Add touch events
+          let isDragging = false;
+          
+          joystickBase.touchStarted((e) => {
+            isDragging = true;
+            joystickData.active = true;
+            return false;
+          });
+          
+          joystickBase.mousePressed((e) => {
+            isDragging = true;
+            joystickData.active = true;
+            return false;
+          });
+        }
+
+        function setupSocketEvents() {
+          socket.on('connect', () => {
+            console.log('Connected to server:', socket.id);
+          });
+          
+          socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            connectButton.html("RECONNECT");
+          });
+        }
+
+        function joinGame() {
+          console.log("Attempting to join game as creature:", nickname);
+          connectButton.html("CONNECTED");
+          connectButton.style("background", "#2196F3");
+        }
+
+        function draw() {
+          background(20);
+          fill(255);
+          
+          // Game title
+          textSize(32);
+          text("OSCILLOSCOPE", width/2, 50);
+          text("CREATURES", width/2, 90);
+          
+          // Your creature info
+          textSize(20);
+          fill(nickname);
+          text(`You are: ${nickname.toUpperCase()}`, width/2, height/2 - 100);
+          
+          fill(255);
+          textSize(16);
+          text("Use joystick to move", width/2, height/2 - 60);
+          text("Shake phone to grow bigger!", width/2, height/2 - 40);
+          text("Watch the shared screen", width/2, height/2 - 20);
+          
+          // Instructions
+          textSize(14);
+          text("Tilt and move your phone", width/2, height/2 + 40);
+          text("Your creature responds to movement", width/2, height/2 + 60);
+          
+          // Handle joystick input
+          handleJoystickInput();
+          
+          // Detect shake
+          detectShake();
+          
+          // Send data to server
+          if (frameCount % updateRate === 0 && window.permissionGranted) {
+            sendGameData();
+          }
+          
+          // Show connection status
+          textSize(12);
+          fill(socket.connected ? color(0, 255, 0) : color(255, 0, 0));
+          text(socket.connected ? "CONNECTED" : "DISCONNECTED", width - 60, 30);
+        }
+
+        function handleJoystickInput() {
+          // Handle touch/mouse input for joystick
+          if (touches.length > 0 || mouseIsPressed) {
+            let touch = touches.length > 0 ? touches[0] : {x: mouseX, y: mouseY};
+            
+            // Check if touch is on joystick area
+            let joystickX = width - 80;  // center of joystick
+            let joystickY = height - 80;
+            let distance = dist(touch.x, touch.y, joystickX, joystickY);
+            
+            if (distance < 60 && joystickData.active) {
+              let deltaX = touch.x - joystickX;
+              let deltaY = touch.y - joystickY;
+              let maxDistance = 40;
+              
+              if (distance <= maxDistance) {
+                joystickData.x = deltaX / maxDistance;
+                joystickData.y = deltaY / maxDistance;
+              } else {
+                let angle = atan2(deltaY, deltaX);
+                joystickData.x = cos(angle);
+                joystickData.y = sin(angle);
+              }
+              
+              // Update visual position
+              let stickX = 50 + joystickData.x * 40;
+              let stickY = 50 + joystickData.y * 40;
+              joystickStick.style("left", stickX + "px");
+              joystickStick.style("top", stickY + "px");
+            }
+          } else {
+            // Reset joystick
+            joystickData.active = false;
+            joystickData.x = 0;
+            joystickData.y = 0;
+            joystickStick.style("left", "50%");
+            joystickStick.style("top", "50%");
+          }
+        }
+
+        function detectShake() {
+          if (accelerationX !== undefined && accelerationY !== undefined && accelerationZ !== undefined) {
+            let totalAcceleration = sqrt(
+              accelerationX * accelerationX + 
+              accelerationY * accelerationY + 
+              accelerationZ * accelerationZ
+            );
+            
+            if (totalAcceleration > shakeThreshold && millis() - lastShakeTime > 1000) {
+              shakeDetected = true;
+              lastShakeTime = millis();
+              
+              // Show shake indicator
+              shakeIndicator.style("opacity", "1");
+              setTimeout(() => {
+                shakeIndicator.style("opacity", "0");
+              }, 1500);
+              
+              console.log("Shake detected! Total acceleration:", totalAcceleration);
+            } else {
+              shakeDetected = false;
+            }
+          }
+        }
+
+        function sendGameData() {
+          const data = {
+            // Device sensor data
+            accelerationX: accelerationX || 0,
+            accelerationY: accelerationY || 0,  
+            accelerationZ: accelerationZ || 0,
+            rotationX: rotationX || 0,
+            rotationY: rotationY || 0,
+            rotationZ: rotationZ || 0,
+            
+            // Game controls
+            joystickX: joystickData.x,
+            joystickY: joystickData.y,
+            joystickActive: joystickData.active,
+            shakeDetected: shakeDetected,
+            
+            // Touch data
+            mouseX: mouseX,
+            mouseY: mouseY,
+            touches: touches,
+            
+            // Screen info
+            windowWidth: windowWidth,
+            windowHeight: windowHeight,
+            
+            // Player info
+            id: socket.id,
+            name: nickname,
+            color: playerColor,
+            
+            // Timestamp
+            timestamp: millis()
+          };
+          
+          socket.emit("update", JSON.stringify(data));
+        }
+
+        // Prevent scrolling on mobile
+        function touchStarted() {
+          return false;
+        }
+
+        function touchMoved() {
+          return false;
+        }
+
+        // Debug info
+        function keyPressed() {
+          if (key === 'd' || key === 'D') {
+            console.log("Debug info:");
+            console.log("Accelerometer:", accelerationX, accelerationY, accelerationZ);
+            console.log("Rotation:", rotationX, rotationY, rotationZ);
+            console.log("Joystick:", joystickData);
+            console.log("Socket connected:", socket.connected);
+          }
+        }
+    </script>
+</body>
+</html>

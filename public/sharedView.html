@@ -1,39 +1,438 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oscilloscope Creatures - Shared View</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .loading h1 {
+            color: #00ff00;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        .loading p {
+            color: #ccc;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <h1>OSCILLOSCOPE CREATURES</h1>
+        <p>Shared View Loading...</p>
+        <p>Players connect with mobile devices</p>
+        <p>Visit: <span id="url"></span></p>
+    </div>
 
-    <title>Shared View Demo</title>
-
-    <!-- import the webpage's stylesheet -->
-    <link rel="stylesheet" href="/style.css" />
-
-    <!-- import socket.io for communication between connected clients -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.js"></script>
-
-    <!-- p5.js libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.5/lib/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5.sound@latest/dist/p5.sound.min.js"></script>
-
-    <!-- link font from Google -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+    <!-- p5.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
     
-    <!-- import the webpage's client-side javascript file -->
-    <script src="sharedView.js" defer></script>
-  </head>
-  <body>
+    <!-- Socket.IO client -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Your shared view code -->
+    <script>
+        // Set the URL for mobile connection
+        document.getElementById('url').textContent = window.location.host + '/client.html';
 
-    <!-- TODO: ADD HTML ELEMENTS AS YOU SEE FIT HERE -->
-    <h1>
-      Connections
-    </h1>
-    <main>
+        /* Oscilloscope Creatures - Shared View Display
+         *
+         * JavaScript code for the shared screen that displays all
+         * oscilloscope creatures controlled by mobile devices
+         */
 
-    </main>
+        const SOCKET_URL = window.location.host;
+        const socket = io.connect(SOCKET_URL + "/sharedView");
 
-  </body>
+        const users = new Map();
+        const creatures = new Map();
+
+        // Game settings
+        const WORLD_WIDTH = 1200;
+        const WORLD_HEIGHT = 800;
+        const CREATURE_SIZE = 80;
+
+        function setup() {
+          createCanvas(windowWidth, windowHeight);
+
+          // Hide loading screen
+          document.getElementById('loading').style.display = 'none';
+
+          socket.on("userJoined", onUserJoined);
+          socket.on("userUpdate", onUserUpdate);
+          socket.on("userLeft", onUserLeft);
+
+          angleMode(DEGREES);
+          rectMode(CENTER);
+          textAlign(CENTER, CENTER);
+          
+          background(0);
+          
+          console.log("Oscilloscope Creatures - Shared View Ready");
+        }
+
+        function draw() {
+          // Dark space background with subtle grid
+          background(5);
+          drawGrid();
+          
+          // Update and draw all creatures
+          for(const [id, user] of users.entries()) {
+            if (user.name && creatures.has(id)) {
+              let creature = creatures.get(id);
+              updateCreature(creature, user);
+              drawCreature(creature, user);
+            }
+          }
+          
+          // UI overlay
+          drawUI();
+        }
+
+        function drawGrid() {
+          stroke(20);
+          strokeWeight(1);
+          
+          // Vertical lines
+          for (let x = 0; x < width; x += 50) {
+            line(x, 0, x, height);
+          }
+          
+          // Horizontal lines  
+          for (let y = 0; y < height; y += 50) {
+            line(0, y, width, y);
+          }
+        }
+
+        function updateCreature(creature, user) {
+          // Update position based on joystick
+          if (user.joystickActive) {
+            creature.targetX += user.joystickX * 8;
+            creature.targetY += user.joystickY * 8;
+          }
+          
+          // Boundary constraints
+          creature.targetX = constrain(creature.targetX, CREATURE_SIZE, width - CREATURE_SIZE);
+          creature.targetY = constrain(creature.targetY, CREATURE_SIZE, height - CREATURE_SIZE);
+          
+          // Smooth movement
+          creature.x += (creature.targetX - creature.x) * 0.1;
+          creature.y += (creature.targetY - creature.y) * 0.1;
+          
+          // Update shake effect
+          if (user.shakeDetected && millis() - creature.lastShake > 1000) {
+            creature.shakeTime = 2000; // 2 second shake effect
+            creature.lastShake = millis();
+          }
+          
+          if (creature.shakeTime > 0) {
+            creature.shakeTime -= 16; // ~60fps
+            creature.targetSize = 1.5 + sin(millis() * 0.01) * 0.3;
+          } else {
+            creature.targetSize = 1.0;
+          }
+          
+          // Smooth size changes
+          creature.size += (creature.targetSize - creature.size) * 0.1;
+          
+          // Animation time
+          creature.time += 0.02 * creature.personality.speed;
+          
+          // Update oscilloscope arms
+          updateOscilloscopeArms(creature, user);
+        }
+
+        function updateOscilloscopeArms(creature, user) {
+          const arms = creature.arms;
+          const segments = creature.segments;
+          
+          // Use device rotation for influence
+          const rotInfluence = {
+            x: (user.rotationX || 0) * 0.01,
+            y: (user.rotationY || 0) * 0.01,
+            z: (user.rotationZ || 0) * 0.01
+          };
+          
+          for (let arm = 0; arm < arms; arm++) {
+            const armAngle = (arm / arms) * 360;
+            creature.armData[arm] = creature.armData[arm] || [];
+            
+            for (let i = 0; i < segments; i++) {
+              const t = i / (segments - 1);
+              
+              // Base radius with oscilloscope modulation
+              let r = creature.radius * t;
+              
+              // Multiple frequency components for complex shape
+              const wave1 = sin(creature.time + armAngle + t * creature.personality.freq1 * 10 + rotInfluence.x * 100) * 0.5;
+              const wave2 = sin(creature.time * 1.3 + armAngle * 2 + t * creature.personality.freq2 * 15 + rotInfluence.y * 100) * 0.3;
+              const wave3 = sin(creature.time * 0.7 + armAngle * 3 + t * 8 + rotInfluence.z * 100) * 0.2;
+              
+              // Add chaos influenced by accelerometer
+              const accelInfluence = sqrt((user.accelerationX || 0)**2 + (user.accelerationY || 0)**2) * 0.1;
+              const chaos = sin(creature.time * 2 + armAngle * 4 + t * 20) * creature.personality.chaos * (0.1 + accelInfluence);
+              
+              r += (wave1 + wave2 + wave3 + chaos) * creature.radius * 0.4;
+              r = max(0.1, r);
+              
+              // Calculate position
+              const x = cos(armAngle) * r;
+              const y = sin(armAngle) * r;
+              
+              // Color intensity based on wave amplitude
+              const intensity = abs(wave1 + wave2) + 0.3;
+              
+              creature.armData[arm][i] = {
+                x: x,
+                y: y,
+                intensity: intensity,
+                armAngle: armAngle
+              };
+            }
+          }
+        }
+
+        function drawCreature(creature, user) {
+          push();
+          translate(creature.x, creature.y);
+          scale(creature.size);
+          
+          // Draw creature name
+          fill(255);
+          textSize(16 / creature.size);
+          text(user.name.toUpperCase(), 0, -creature.radius - 30);
+          
+          // Shake indicator
+          if (creature.shakeTime > 0) {
+            fill(255, 100, 100, 150);
+            textSize(12 / creature.size);
+            text("GROWING!", 0, -creature.radius - 50);
+          }
+          
+          // Draw oscilloscope arms
+          for (let arm = 0; arm < creature.arms; arm++) {
+            if (!creature.armData[arm]) continue;
+            
+            stroke(creature.color.r, creature.color.g, creature.color.b, 200);
+            strokeWeight(2);
+            noFill();
+            
+            beginShape();
+            for (let i = 0; i < creature.segments; i++) {
+              const point = creature.armData[arm][i];
+              if (point) {
+                // Color based on intensity
+                const intensity = point.intensity;
+                const alpha = map(intensity, 0, 1, 100, 255);
+                
+                stroke(
+                  creature.color.r + intensity * 50,
+                  creature.color.g + intensity * 50, 
+                  creature.color.b + intensity * 50,
+                  alpha
+                );
+                
+                vertex(point.x, point.y);
+              }
+            }
+            endShape();
+            
+            // Draw connecting lines between arms for web effect
+            if (arm % 2 === 0 && creature.armData[arm + 1]) {
+              stroke(creature.color.r, creature.color.g, creature.color.b, 100);
+              strokeWeight(1);
+              
+              for (let i = 0; i < creature.segments; i += 3) {
+                const point1 = creature.armData[arm][i];
+                const point2 = creature.armData[arm + 1] ? creature.armData[arm + 1][i] : null;
+                
+                if (point1 && point2) {
+                  line(point1.x, point1.y, point2.x, point2.y);
+                }
+              }
+            }
+          }
+          
+          // Center core
+          fill(creature.color.r, creature.color.g, creature.color.b, 180);
+          stroke(255, 150);
+          strokeWeight(1);
+          ellipse(0, 0, 20, 20);
+          
+          // Activity indicators
+          if (user.joystickActive) {
+            fill(0, 255, 0, 100);
+            ellipse(0, 0, 30, 30);
+          }
+          
+          pop();
+        }
+
+        function drawUI() {
+          // Title
+          fill(255);
+          textAlign(LEFT);
+          textSize(24);
+          text("OSCILLOSCOPE CREATURES", 30, 40);
+          
+          // Player count
+          textSize(16);
+          text(`Active Creatures: ${users.size}`, 30, 70);
+          
+          // Instructions
+          textSize(12);
+          fill(150);
+          text("Players use mobile devices to control their creatures", 30, height - 60);
+          text("Joystick to move • Shake phone to grow bigger • Tilt for effects", 30, height - 40);
+          text("Join at: " + window.location.host + "/client.html", 30, height - 20);
+          
+          // Connection status
+          textAlign(RIGHT);
+          fill(socket.connected ? color(0, 255, 0) : color(255, 0, 0));
+          text(socket.connected ? "CONNECTED" : "DISCONNECTED", width - 30, 40);
+        }
+
+        function onUserJoined(data) {
+          console.log("Creature joined: " + data.id);
+          users.set(data.id, {});
+        }
+
+        function onUserUpdate(data) {
+          const json = JSON.parse(data);
+          
+          if (json.id) {
+            users.set(json.id, json);
+            
+            // Create creature if it doesn't exist
+            if (!creatures.has(json.id) && json.name) {
+              createCreature(json.id, json);
+            }
+          }
+        }
+
+        function onUserLeft(data) {
+          console.log(`Creature left: ${data.id}`);
+          users.delete(data.id);
+          creatures.delete(data.id);
+        }
+
+        function createCreature(id, userData) {
+          // Get color from name
+          const colorName = userData.color || userData.name;
+          const creatureColor = getColorFromName(colorName);
+          
+          const creature = {
+            id: id,
+            x: random(CREATURE_SIZE, width - CREATURE_SIZE),
+            y: random(CREATURE_SIZE, height - CREATURE_SIZE),
+            targetX: 0,
+            targetY: 0,
+            size: 1,
+            targetSize: 1,
+            time: random(0, TWO_PI),
+            shakeTime: 0,
+            lastShake: 0,
+            
+            // Oscilloscope properties
+            arms: 8,
+            segments: 30,
+            radius: CREATURE_SIZE * 0.6,
+            color: creatureColor,
+            armData: [],
+            
+            // Personality
+            personality: {
+              freq1: 0.5 + random(2),
+              freq2: 0.3 + random(1.5),
+              chaos: 0.2 + random(0.5),
+              speed: 0.8 + random(0.4)
+            }
+          };
+          
+          creature.targetX = creature.x;
+          creature.targetY = creature.y;
+          
+          creatures.set(id, creature);
+          console.log("Created creature:", colorName, "for user:", id);
+        }
+
+        function getColorFromName(colorName) {
+          // Convert color names to RGB values
+          const colorMap = {
+            'crimson': { r: 220, g: 20, b: 60 },
+            'gold': { r: 255, g: 215, b: 0 },
+            'lime': { r: 50, g: 205, b: 50 },
+            'cyan': { r: 0, g: 255, b: 255 },
+            'magenta': { r: 255, g: 0, b: 255 },
+            'orange': { r: 255, g: 165, b: 0 },
+            'purple': { r: 128, g: 0, b: 128 },
+            'pink': { r: 255, g: 192, b: 203 },
+            'teal': { r: 0, g: 128, b: 128 },
+            'coral': { r: 255, g: 127, b: 80 },
+            'violet': { r: 238, g: 130, b: 238 },
+            'turquoise': { r: 64, g: 224, b: 208 },
+            'salmon': { r: 250, g: 128, b: 114 },
+            'chartreuse': { r: 127, g: 255, b: 0 },
+            'hotpink': { r: 255, g: 105, b: 180 },
+            'dodgerblue': { r: 30, g: 144, b: 255 },
+            'orchid': { r: 218, g: 112, b: 214 },
+            'springgreen': { r: 0, g: 255, b: 127 }
+          };
+          
+          return colorMap[colorName] || { r: 255, g: 255, b: 255 };
+        }
+
+        function windowResized() {
+          resizeCanvas(windowWidth, windowHeight);
+        }
+
+        function touchStarted(e) {
+          e.preventDefault();
+        }
+
+        // Debug function
+        function keyPressed() {
+          if (key === 'd' || key === 'D') {
+            console.log("Debug info:");
+            console.log("Users:", users.size);
+            console.log("Creatures:", creatures.size);
+            console.log("Socket connected:", socket.connected);
+            
+            for (const [id, user] of users.entries()) {
+              console.log(`User ${id}:`, user.name, user.joystickActive ? "MOVING" : "IDLE");
+            }
+          }
+          
+          if (key === 'r' || key === 'R') {
+            // Reset all creature positions
+            for (const [id, creature] of creatures.entries()) {
+              creature.x = random(CREATURE_SIZE, width - CREATURE_SIZE);
+              creature.y = random(CREATURE_SIZE, height - CREATURE_SIZE);
+              creature.targetX = creature.x;
+              creature.targetY = creature.y;
+            }
+          }
+        }
+    </script>
+</body>
 </html>

@@ -1,58 +1,152 @@
-# Hello Node!
+# Oscilloscope Creatures 🌟
 
-Building on our [simple node.js example](https://glitch.com/edit/#!/cci-node-express?path=README.md%3A1%3A0),
-this sends accelerometer, gyroscope, and touch data from connected clients' devices (ideally, phones) to the server to be visualized by a "shared view".
-The shared view code shows a display of all connected clients, accessible via `public/sharedView.html`, and using `public/sharedView.js` to handle the visualization with p5.js.
+A multiplayer game where players control radial oscilloscope creatures using their mobile devices as controllers. Each creature is a living data visualization that responds to device movement, joystick input, and shake gestures.
 
-`public/client.js` sends the data from its device using p5.js and socket.io, and is connected to `public/index.html` so that it is the default code for the page.
+## 🎮 How It Works
 
-This app serves as an example for showing a different display on a "shared view" node (say, a large scale display in an installation), while providing a different localized experience for participants in their own devices.
-The shared view is a client with a specialized role and display.
+- **Mobile Controller**: Players connect with their phones, using the joystick to move their creature and shaking to make it grow
+- **Shared Display**: A central screen shows all creatures interacting in real-time
+- **Live Data**: Creatures respond to accelerometer data, creating organic, ever-changing oscilloscope patterns
 
-* [Shared View](https://cci-node-socket-mobile-data.glitch.me/sharedView.html)
-* [Client View](https://cci-node-socket-mobile-data.glitch.me/)
+## 📱 Features
 
-[Node.js](https://nodejs.org/en/about/) is a popular runtime that lets you run server-side JavaScript.
-This project uses the [Express](https://expressjs.com/) framework.
-Please do not upgrade to Express version 5, which is incompatible with the version of node.js that Glitch uses.
+- **Device Motion Controls**: Accelerometer and gyroscope data influence creature behavior
+- **Shake Detection**: Shake your phone to make your creature temporarily grow larger  
+- **Virtual Joystick**: On-screen joystick for precise movement control
+- **Real-time Multiplayer**: Multiple players can join simultaneously
+- **Unique Personalities**: Each creature has randomized oscilloscope patterns and colors
 
-_Last updated: 19 May 2025_
+## 🚀 Quick Setup
 
-## Prerequisites
+### 1. Install Dependencies
+```bash
+npm install
+```
 
-You'll get best use out of this project if you're familiar with basic JavaScript.
-If you've written JavaScript for client-side web pages this is a little different because it uses server-side JS, but the syntax is the same!
+### 2. Start the Server
+```bash
+npm start
+```
 
-## What's in this project?
+### 3. Open in Browser
+- **Shared Display**: Visit `http://localhost:3000/sharedView.html` (for the main screen)
+- **Mobile Controllers**: Visit `http://localhost:3000/client.html` on mobile devices
 
-← `README.md`: That’s this file, where you can tell people what your cool website does and how you built it.
+## 📁 Project Structure
 
-← `public/style.css`: The styling rules for the pages in your site.
+```
+oscilloscope-creatures/
+├── server.js              # Socket.IO server with namespaces
+├── package.json           # Project dependencies
+├── public/
+│   ├── client.html        # Mobile controller interface
+│   └── sharedView.html    # Shared display screen
+└── README.md             # This file
+```
 
-← `public/client.js`: The JavaScript for the site's front-end. This connects to a socket to talk to the server and uses p5.js and socket.io to send data about user interactions/data on the device.
+## 🎯 Usage
 
-← `public/index.html`: This is the main index for the site. In other Glitch examples, you may see HTML templates with libraries like Handlebars instead of an index.html
+### For the Shared Display (TV/Projector)
+1. Open `http://localhost:3000/sharedView.html` in a browser
+2. This shows all connected creatures in real-time
+3. Press 'D' for debug info, 'R' to reset positions
 
-← `public/sharedView.html`: Shows all connected clients (except for itself) in a visualization.
+### For Mobile Players
+1. Connect mobile device to same WiFi network
+2. Open `http://localhost:3000/client.html` on mobile browser
+3. Allow sensor permissions when prompted
+4. Use joystick to move, shake phone to grow your creature
 
-← `public/sharedView.js`: Provides the JavaScript (p5.js and socket.io) necessary to render the visualizations in host.js
+## 🔧 Technical Details
 
-← `server.js`: The **Node.js** server script for your new site. In this example, we set up some socket.io communication between client & host in addition to serving HTML, CSS, and JS files.
+### Server Architecture
+- **Express.js** serves static files
+- **Socket.IO** handles real-time communication
+- **Namespaces**: `/client` for mobile devices, `/sharedView` for display screens
 
-← `package.json`: The NPM packages for your project's dependencies.
+### Mobile Controller Features
+- Device motion API for accelerometer/gyroscope data
+- Touch-based virtual joystick
+- Shake detection with configurable threshold
+- Automatic reconnection handling
 
-## Try this next 🏗️
+### Oscilloscope Visualization
+- 8 radial arms per creature with 30 segments each
+- Multiple frequency components create complex patterns
+- Device rotation influences wave patterns
+- Accelerometer data adds chaos/organic movement
+- Each creature has unique personality traits
 
-___Want a minimal version of this project to build your own Node.js app? Check out [Blank Node](https://glitch.com/edit/#!/remix/glitch-blank-node)!___
+## 🎨 Customization
 
-![Glitch](https://cdn.glitch.com/a9975ea6-8949-4bab-addb-8a95021dc2da%2FLogo_Color.svg?v=1602781328576)
+### Adding New Colors
+Edit the `creatureColors` array in both client files:
+```javascript
+const creatureColors = [
+  "crimson", "gold", "lime", "cyan", "magenta", 
+  // Add your colors here
+];
+```
 
-Note: this is a template developed by Glitch and uses Fastify instead of Express.
-Both libraries are similar in function, but have different syntax.
+### Adjusting Sensitivity
+Modify these values in the client code:
+```javascript
+const shakeThreshold = 20;     // Shake detection sensitivity
+const updateRate = 15;         // Data transmission rate (fps)
+```
 
-## You built this with Glitch!
+### Creature Behavior
+Adjust oscilloscope parameters in the shared view:
+```javascript
+// In createCreature function
+personality: {
+  freq1: 0.5 + random(2),      // Primary frequency
+  freq2: 0.3 + random(1.5),    // Secondary frequency  
+  chaos: 0.2 + random(0.5),    // Randomness factor
+  speed: 0.8 + random(0.4)     // Animation speed
+}
+```
 
-[Glitch](https://glitch.com) is a friendly community where millions of people come together to build web apps and websites.
+## 🌐 Deployment
 
-- Need more help? [Check out our Help Center](https://help.glitch.com/) for answers to any common questions.
-- Ready to make it official? [Become a paid Glitch member](https://glitch.com/pricing) to boost your app with private sharing, more storage and memory, domains and more.
+### Local Network
+- Start server: `npm start`
+- Find your IP: `ipconfig` (Windows) or `ifconfig` (Mac/Linux)
+- Players connect to: `http://YOUR_IP:3000/client.html`
+
+### Cloud Deployment (Heroku, Railway, etc.)
+1. Set `PORT` environment variable
+2. Ensure CORS settings match your domain
+3. Update Socket.IO connection URLs in client files
+
+## 🐛 Troubleshooting
+
+### Connection Issues
+- Ensure all devices are on same network
+- Check firewall settings (port 3000)
+- Try different browsers if sensors don't work
+
+### Mobile Permissions
+- iOS: Requires HTTPS for DeviceMotion API in production
+- Android: Usually works over HTTP on local network
+- Clear browser cache if permissions seem stuck
+
+### Performance
+- Reduce `updateRate` if lag occurs
+- Lower `segments` count in creatures for slower devices
+- Use fewer `arms` per creature if needed
+
+## 🎮 Game Tips
+
+- **Smooth Movement**: Gentle joystick movements create fluid motion
+- **Shake Strategy**: Time your shakes - there's a 1-second cooldown
+- **Tilt Effects**: Small device tilts create subtle pattern changes
+- **Exploration**: Try different movement patterns to see how creatures respond
+
+## 📝 License
+
+MIT License - feel free to modify and share!
+
+---
+
+**Enjoy creating digital creatures together! 🌟**
