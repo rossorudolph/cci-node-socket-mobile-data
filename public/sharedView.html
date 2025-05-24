@@ -126,7 +126,7 @@
           creature.x += (creature.targetX - creature.x) * 0.1;
           creature.y += (creature.targetY - creature.y) * 0.1;
           
-          // Update shake effect - 10 second duration
+          // Update shake effect - 10 second duration with gradual fade
           if (user.shakeDetected && millis() - creature.lastShake > 1000) {
             creature.shakeTime = 10000; // 10 second shake effect
             creature.lastShake = millis();
@@ -134,11 +134,14 @@
           
           if (creature.shakeTime > 0) {
             creature.shakeTime -= 16; // ~60fps
-            // Dramatic size increase when shaking
-            creature.targetSize = 0.6 + sin(millis() * 0.008) * 0.2;
+            // Gradual fade from large to small over 10 seconds
+            let fadeProgress = creature.shakeTime / 10000; // 1.0 to 0.0
+            let maxSize = 0.7 + sin(millis() * 0.008) * 0.2;
+            let minSize = 0.25; // More visible base size
+            creature.targetSize = lerp(minSize, maxSize, fadeProgress);
           } else {
-            // More visible when not shaking - but still subtle
-            creature.targetSize = 0.15 + sin(millis() * 0.002) * 0.02; // Gentle breathing
+            // More visible when not shaking - increased from 0.15
+            creature.targetSize = 0.25 + sin(millis() * 0.002) * 0.03; // Gentle breathing
           }
           
           // Organic jittering - random multipliers that change slowly
@@ -236,15 +239,15 @@
           
           // No name - minimal Ikeda style
           
-          // Draw minimal oscilloscope lines - slightly more visible
+          // Draw minimal oscilloscope lines - more visible
           for (let arm = 0; arm < creature.arms; arm++) {
             if (!creature.armData[arm]) continue;
             
-            // More visible base opacity
-            let baseAlpha = creature.size > 0.3 ? 200 : 80; // Increased from 40
+            // Increased base opacity for better visibility
+            let baseAlpha = creature.size > 0.4 ? 220 : 120; // Increased from 80
             
             stroke(creature.color.r, creature.color.g, creature.color.b, baseAlpha);
-            strokeWeight(0.8); // Slightly thicker for visibility
+            strokeWeight(1.0); // Slightly thicker for visibility
             noFill();
             
             // Draw as smooth curves instead of connected vertices
@@ -255,7 +258,7 @@
               if (point) {
                 // Intensity affects opacity, not color
                 const intensity = point.intensity;
-                const alpha = map(intensity, 0, 1, baseAlpha * 0.4, baseAlpha);
+                const alpha = map(intensity, 0, 1, baseAlpha * 0.5, baseAlpha);
                 
                 stroke(creature.color.r, creature.color.g, creature.color.b, alpha);
                 
@@ -298,8 +301,8 @@
           fill(socket.connected ? color(100, 255, 100) : color(255, 100, 100));
           text(socket.connected ? "●" : "○", width - 20, 30);
           
-          // Minimal waiting message if no players
-          if (users.size === 0) {
+          // Only show waiting message if no connected users AND no creatures
+          if (users.size === 0 && creatures.size === 0) {
             textAlign(CENTER);
             fill(80);
             textSize(12);
@@ -342,8 +345,8 @@
             y: random(100, height - 100),
             targetX: 0,
             targetY: 0,
-            size: 0.15, // Start slightly more visible
-            targetSize: 0.15,
+            size: 0.25, // Start more visible
+            targetSize: 0.25,
             time: random(0, TWO_PI),
             shakeTime: 0,
             lastShake: 0,
